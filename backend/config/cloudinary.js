@@ -18,6 +18,9 @@ const storage = new CloudinaryStorage({
     folder: 'resume-builder',
     allowed_formats: ['pdf', 'docx', 'jpg', 'png'],
     resource_type: 'auto',
+    // Using public access for easier access
+    type: 'upload',
+    use_filename: true
   },
 });
 

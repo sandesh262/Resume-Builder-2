@@ -2,7 +2,7 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/authMiddleware');
-const { upload } = require('../config/cloudinary');
+const { upload, cloudinary } = require('../config/cloudinary');
 const Resume = require('../models/Resume');
 const resumeParser = require('../services/resumeParser');
 
@@ -15,32 +15,77 @@ router.post('/upload', authMiddleware, upload.single('resume'), async (req, res)
       return res.status(400).json({ msg: 'No file uploaded' });
     }
 
-    // Parse the uploaded resume
-    const parsedData = await resumeParser.parseResumeUrl(req.file.path);
-    
-    // Create a new resume entry
-    let resume = new Resume({
-      user: req.user.id,
-      name: parsedData.name || 'My Resume',
-      contact: {
-        email: parsedData.email || '',
-        phone: parsedData.phone || '',
-        location: parsedData.location || ''
-      },
-      summary: parsedData.summary || '',
-      experience: parsedData.experience || [],
-      education: parsedData.education || [],
-      skills: parsedData.skills || [],
-      originalResume: {
-        url: req.file.path,
-        publicId: req.file.filename,
-        filename: req.file.originalname,
-        uploadDate: new Date()
+    // Parse the uploaded resume using Cloudinary URL
+    try {
+      console.log('Uploaded file details:', {
+        path: req.file.path,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        filename: req.file.originalname
+      });
+      
+      const fileBuffer = await resumeParser.parseResumeUrl(req.file.path);
+      
+      // Check file type and use appropriate parser
+      let parsedData;
+      if (req.file.mimetype === 'application/pdf' || req.file.originalname.toLowerCase().endsWith('.pdf')) {
+        console.log('Processing as PDF file');
+        parsedData = await resumeParser.parsePDF(fileBuffer);
+      } else if (req.file.mimetype.startsWith('image/') || 
+                ['.png', '.jpg', '.jpeg'].some(ext => req.file.originalname.toLowerCase().endsWith(ext))) {
+        console.log('Processing as image file');
+        parsedData = await resumeParser.parseImageWithOCR(fileBuffer);
+      } else {
+        console.log('Unknown file type, using default parser');
+        parsedData = {
+          name: req.file.originalname.split('.')[0] || 'My Resume',
+          email: '',
+          phone: '',
+          location: '',
+          summary: 'File type not supported for detailed parsing',
+          experience: [],
+          education: [],
+          skills: []
+        };
       }
-    });
+      
+      // Create a new resume entry
+      let resume = new Resume({
+        user: req.user.id,
+        name: parsedData.name || 'My Resume',
+        contact: {
+          email: parsedData.email || '',
+          phone: parsedData.phone || '',
+          location: parsedData.location || ''
+        },
+        summary: parsedData.summary || '',
+        experience: parsedData.experience || [],
+        education: parsedData.education || [],
+        skills: parsedData.skills || [],
+        originalResume: {
+          url: req.file.path,
+          publicId: req.file.public_id || req.file.filename,
+          filename: req.file.originalname,
+          uploadDate: new Date()
+        }
+      });
 
-    await resume.save();
-    res.json(resume);
+      await resume.save();
+      res.json(resume);
+    } catch (error) {
+      console.error('Error processing resume:', error);
+      // Provide more detailed error information
+      res.status(500).json({ 
+        error: error.message,
+        fileInfo: req.file ? {
+          path: req.file.path,
+          mimetype: req.file.mimetype,
+          size: req.file.size,
+          filename: req.file.originalname
+        } : 'No file info available',
+        step: error.step || 'unknown step'
+      });
+    }
   } catch (err) {
     console.error('Error uploading resume:', err.message);
     res.status(500).send('Server Error');
@@ -109,7 +154,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
       await cloudinary.uploader.destroy(resume.originalResume.publicId);
     }
     
-    await resume.remove();
+    await resume.deleteOne();
     
     res.json({ msg: 'Resume removed' });
   } catch (err) {
