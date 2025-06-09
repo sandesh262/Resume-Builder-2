@@ -3,8 +3,19 @@ const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 module.exports = function(req, res, next) {
-  // Get token from header
-  const token = req.header('x-auth-token');
+  // Get token from header - support multiple formats
+  let token = req.header('x-auth-token');
+  
+  // Check for Authorization Bearer token format
+  const authHeader = req.header('Authorization');
+  if (!token && authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.split(' ')[1];
+  }
+  
+  // Check for token in query params (for testing)
+  if (!token && req.query && req.query.token) {
+    token = req.query.token;
+  }
 
   // Check if no token
   if (!token) {

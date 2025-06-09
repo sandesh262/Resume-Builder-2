@@ -1,61 +1,42 @@
 // server/services/resumeParser.js
 const axios = require('axios');
 const pdf = require('pdf-parse');
-const { cloudinary } = require('../config/cloudinary');
+// const { cloudinary } = require('../config/cloudinary'); // Not strictly needed for URL fetching if URL is public
 
 const parseResumeUrl = async (url) => {
   try {
-    console.log('Downloading file from URL:', url);
+    console.log('Attempting to download file from URL:', url);
     
-    // For Cloudinary URLs, we need to ensure they're accessible
-    // Sometimes Cloudinary requires special handling for PDFs
-    if (url.includes('cloudinary.com')) {
-      // Extract the Cloudinary details from the URL
-      const cloudName = url.split('/')[3]; // e.g., ds4pkrro9
-      const version = url.match(/v\d+/)?.[0] || ''; // e.g., v1748433046
-      const folder = url.split('/')[url.split('/').length - 2]; // e.g., resume-builder
-      const publicId = url.split('/').pop().split('.')[0]; // e.g., file_x1xcal
-      
-      console.log('Cloudinary details:', { cloudName, version, folder, publicId });
-      
-      // Construct a direct download URL with fl_attachment
-      const directUrl = `https://res.cloudinary.com/${cloudName}/image/upload/fl_attachment/${version}/${folder}/${publicId}.pdf`;
-      
-      console.log('Using direct download URL:', directUrl);
-      
-      try {
-        // Try with the direct download URL first
-        const response = await axios.get(directUrl, { 
-          responseType: 'arraybuffer',
-          timeout: 15000
-        });
-        
-        console.log('File downloaded successfully using direct URL');
-        return Buffer.from(response.data);
-      } catch (directError) {
-        console.log('Direct download failed, trying original URL:', directError.message);
-        // Fall back to the original URL
-      }
-    }
-    
-    // Try the original URL as a fallback
     const response = await axios.get(url, { 
       responseType: 'arraybuffer',
-      timeout: 15000,
+      timeout: 20000, // Increased timeout slightly
+      // It's good practice to have a User-Agent
       headers: {
-        // Add headers that might help with access
-        'Accept': 'application/pdf,application/octet-stream',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        'User-Agent': 'ResumeBuilderApp/1.0'
       }
     });
     
-    console.log('File downloaded successfully');
+    console.log('File downloaded successfully from URL. Size:', response.data.length);
     return Buffer.from(response.data);
+
   } catch (error) {
-    console.error('Error downloading file:', error);
-    
-    // Create a dummy buffer with basic PDF content as a last resort
-    console.log('Creating a placeholder PDF buffer');
+    console.error('Error downloading file from URL:', url);
+    if (error.response) {
+      // Axios error with a response from the server
+      console.error('Status:', error.response.status);
+      console.error('Headers:', JSON.stringify(error.response.headers, null, 2));
+      // console.error('Data:', error.response.data.toString()); // Be careful logging full data if it's large/binary
+    } else if (error.request) {
+      // The request was made but no response was received
+      console.error('No response received:', error.request);
+    } else {
+      // Something else happened in setting up the request
+      console.error('Error message:', error.message);
+    }
+    console.error('Axios error config:', JSON.stringify(error.config, null, 2));
+
+    // Fallback to placeholder if download fails
+    console.log('Creating a placeholder PDF buffer due to download failure.');
     return Buffer.from('%PDF-1.5\n1 0 obj\n<</Type/Catalog/Pages 2 0 R>>\nendobj\n2 0 obj\n<</Type/Pages/Kids[3 0 R]/Count 1>>\nendobj\n3 0 obj\n<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R/Resources<<>>>>\nendobj\nxref\n0 4\n0000000000 65535 f\n0000000010 00000 n\n0000000053 00000 n\n0000000102 00000 n\n\ntrailer\n<</Size 4/Root 1 0 R>>\nstartxref\n178\n%%EOF');
   }
 };

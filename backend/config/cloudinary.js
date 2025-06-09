@@ -20,7 +20,9 @@ const storage = new CloudinaryStorage({
     resource_type: 'auto',
     // Using public access for easier access
     type: 'upload',
-    use_filename: true
+    use_filename: true,
+    access_mode: 'public',
+    overwrite: true
   },
 });
 
