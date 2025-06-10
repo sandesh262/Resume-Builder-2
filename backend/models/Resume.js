@@ -18,6 +18,8 @@ const ResumeSchema = new mongoose.Schema({
     linkedin: String
   },
   summary: String,
+  jobDescription: String,
+  parsedText: String, // To store the manually parsed text from originalResume
   experience: [{
     title: String,
     company: String,
@@ -42,17 +44,16 @@ const ResumeSchema = new mongoose.Schema({
     technologies: [String],
     link: String
   }],
-  // Cloudinary-specific fields
+  // Fields for storing resume directly in MongoDB
   originalResume: {
-    url: String,       // Cloudinary URL
-    publicId: String,  // Cloudinary public ID
-    filename: String,  // Original filename
-    uploadDate: Date   // When it was uploaded
+    data: Buffer,        // To store the file binary data
+    contentType: String, // To store the MIME type (e.g., 'application/pdf')
+    filename: String,    // Original filename
+    uploadDate: Date     // When it was uploaded
   },
   generatedResumes: [{
-    url: String,       // Cloudinary URL
-    publicId: String,  // Cloudinary public ID
     name: String,      // Version name
+    parsedContent: String, // Parsed text content of the generated version
     createdAt: Date    // When it was generated
   }],
   template: {
@@ -66,6 +67,11 @@ const ResumeSchema = new mongoose.Schema({
   updatedAt: {
     type: Date,
     default: Date.now
+  },
+  analysis: {
+    score: Number,
+    summary: String,
+    analyzedAt: Date
   }
 });
 

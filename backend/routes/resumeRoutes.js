@@ -1,10 +1,16 @@
 // server/routes/resumeRoutes.js
+// server/routes/resumeRoutes.js
+const { analyzeResumeWithGemini } = require('../services/geminiService');
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middleware/authMiddleware');
-const { upload, cloudinary } = require('../config/cloudinary');
+const multer = require('multer'); // Added multer
 const Resume = require('../models/Resume');
 const resumeParser = require('../services/resumeParser');
+
+// Configure multer for memory storage
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 // @route   POST api/resumes/upload
 // @desc    Upload a resume file
@@ -15,26 +21,29 @@ router.post('/upload', authMiddleware, upload.single('resume'), async (req, res)
       return res.status(400).json({ msg: 'No file uploaded' });
     }
 
-    // Parse the uploaded resume using Cloudinary URL
+    // Parse the uploaded resume using the file buffer
     try {
-      console.log('Uploaded file details:', {
-        path: req.file.path,
+      console.log('Uploaded file details (from memory):', {
         mimetype: req.file.mimetype,
         size: req.file.size,
         filename: req.file.originalname
       });
       
-      const fileBuffer = await resumeParser.parseResumeUrl(req.file.path);
+      const fileBuffer = req.file.buffer; // Use buffer directly
       
       // Check file type and use appropriate parser
       let parsedData;
-      if (req.file.mimetype === 'application/pdf' || req.file.originalname.toLowerCase().endsWith('.pdf')) {
+      const lowerOriginalName = req.file.originalname.toLowerCase();
+      if (req.file.mimetype === 'application/pdf' || lowerOriginalName.endsWith('.pdf')) {
         console.log('Processing as PDF file');
-        parsedData = await resumeParser.parsePDF(fileBuffer);
+        parsedData = await resumeParser.parsePDF(fileBuffer); // Pass buffer
       } else if (req.file.mimetype.startsWith('image/') || 
                 ['.png', '.jpg', '.jpeg'].some(ext => req.file.originalname.toLowerCase().endsWith(ext))) {
         console.log('Processing as image file');
-        parsedData = await resumeParser.parseImageWithOCR(fileBuffer);
+        parsedData = await resumeParser.parseImageWithOCR(fileBuffer); // Pass buffer
+      } else if (req.file.mimetype === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || lowerOriginalName.endsWith('.docx')) {
+        console.log('Processing as DOCX file');
+        parsedData = await resumeParser.parseDOCX(fileBuffer);
       } else {
         console.log('Unknown file type, using default parser');
         parsedData = {
@@ -45,7 +54,8 @@ router.post('/upload', authMiddleware, upload.single('resume'), async (req, res)
           summary: 'File type not supported for detailed parsing',
           experience: [],
           education: [],
-          skills: []
+          skills: [],
+          fullText: '' // Default empty fullText for unsupported types
         };
       }
       
@@ -62,23 +72,33 @@ router.post('/upload', authMiddleware, upload.single('resume'), async (req, res)
         experience: parsedData.experience || [],
         education: parsedData.education || [],
         skills: parsedData.skills || [],
+        parsedText: parsedData.fullText || '', // Save the full parsed text
         originalResume: {
-          url: req.file.path,
-          publicId: req.file.public_id || req.file.filename,
+          data: req.file.buffer, // Store file buffer
+          contentType: req.file.mimetype, // Store content type
           filename: req.file.originalname,
           uploadDate: new Date()
         }
       });
 
       await resume.save();
-      res.json(resume);
+      
+      // Send back a summarized response, not the whole document
+      res.status(201).json({
+        message: 'Resume uploaded and parsed successfully!',
+        resumeId: resume._id,
+        name: resume.name,
+        contact: resume.contact,
+        summary: resume.summary,
+        experience: resume.experience,
+        education: resume.education,
+        skills: resume.skills
+      });
     } catch (error) {
       console.error('Error processing resume:', error);
-      // Provide more detailed error information
       res.status(500).json({ 
         error: error.message,
         fileInfo: req.file ? {
-          path: req.file.path,
           mimetype: req.file.mimetype,
           size: req.file.size,
           filename: req.file.originalname
@@ -97,7 +117,9 @@ router.post('/upload', authMiddleware, upload.single('resume'), async (req, res)
 // @access  Private
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const resumes = await Resume.find({ user: req.user.id }).sort({ createdAt: -1 });
+    const resumes = await Resume.find({ user: req.user.id })
+      .select('_id name createdAt')
+      .sort({ createdAt: -1 });
     res.json(resumes);
   } catch (err) {
     console.error(err.message);
@@ -112,12 +134,10 @@ router.get('/:id', authMiddleware, async (req, res) => {
   try {
     const resume = await Resume.findById(req.params.id);
     
-    // Check if resume exists
     if (!resume) {
       return res.status(404).json({ msg: 'Resume not found' });
     }
     
-    // Check user owns the resume
     if (resume.user.toString() !== req.user.id) {
       return res.status(401).json({ msg: 'Not authorized' });
     }
@@ -139,20 +159,18 @@ router.delete('/:id', authMiddleware, async (req, res) => {
   try {
     const resume = await Resume.findById(req.params.id);
     
-    // Check if resume exists
     if (!resume) {
       return res.status(404).json({ msg: 'Resume not found' });
     }
     
-    // Check user owns the resume
     if (resume.user.toString() !== req.user.id) {
       return res.status(401).json({ msg: 'Not authorized' });
     }
     
-    // Delete file from Cloudinary if it exists
-    if (resume.originalResume && resume.originalResume.publicId) {
-      await cloudinary.uploader.destroy(resume.originalResume.publicId);
-    }
+    // No longer need to delete from Cloudinary
+    // if (resume.originalResume && resume.originalResume.publicId) {
+    //   await cloudinary.uploader.destroy(resume.originalResume.publicId);
+    // }
     
     await resume.deleteOne();
     
@@ -162,6 +180,104 @@ router.delete('/:id', authMiddleware, async (req, res) => {
     if (err.kind === 'ObjectId') {
       return res.status(404).json({ msg: 'Resume not found' });
     }
+    res.status(500).send('Server Error');
+  }
+});
+
+// @route   PUT api/resumes/:id/job-description
+// @desc    Add or update a job description for a resume
+// @access  Private
+router.put('/:id/job-description', authMiddleware, async (req, res) => {
+  const { jobDescription } = req.body;
+  
+  if (!jobDescription) {
+    return res.status(400).json({ msg: 'Job description is required' });
+  }
+
+  try {
+    const resume = await Resume.findById(req.params.id);
+
+    if (!resume) {
+      return res.status(404).json({ msg: 'Resume not found' });
+    }
+
+    if (resume.user.toString() !== req.user.id) {
+      return res.status(401).json({ msg: 'Not authorized' });
+    }
+
+    resume.jobDescription = jobDescription;
+    resume.updatedAt = Date.now();
+
+    await resume.save();
+
+    res.json({
+      message: 'Job description added successfully',
+      resumeId: resume._id,
+      jobDescription: resume.jobDescription
+    });
+  } catch (err) {
+    console.error(err.message);
+    if (err.kind === 'ObjectId') {
+      return res.status(404).json({ msg: 'Resume not found' });
+    }
+    res.status(500).send('Server Error');
+  }
+});
+
+// @route   POST /api/resumes/:id/analyze
+// @desc    Analyze a resume against a job description using Gemini
+// @access  Private
+router.post('/:id/analyze', authMiddleware, async (req, res) => {
+  try {
+    const resume = await Resume.findById(req.params.id);
+
+    if (!resume) {
+      return res.status(404).json({ msg: 'Resume not found' });
+    }
+
+    if (resume.user.toString() !== req.user.id) {
+      return res.status(401).json({ msg: 'Not authorized' });
+    }
+
+    if (!resume.jobDescription) {
+      return res.status(400).json({ msg: 'Job description is missing. Please add one first.' });
+    }
+
+    if (!resume.parsedText) {
+      return res.status(400).json({ msg: 'Resume has not been parsed yet.' });
+    }
+
+    // Call the Gemini service
+    const geminiResult = await analyzeResumeWithGemini(resume.parsedText, resume.jobDescription);
+
+    if (!geminiResult.success) {
+      return res.status(500).json({ msg: 'Error analyzing resume', error: geminiResult.error });
+    }
+
+    // Parse the score and summary from the Gemini response
+    const analysisText = geminiResult.analysis;
+    const scoreMatch = analysisText.match(/Score: (\d+)/);
+    const score = scoreMatch ? parseInt(scoreMatch[1], 10) : null;
+    const summary = analysisText.replace(/Score: \d+\n*/, '').trim();
+
+    if (score === null) {
+        console.error("Could not parse score from Gemini response:", analysisText);
+        return res.status(500).json({ msg: 'Failed to parse score from analysis.' });
+    }
+
+    // Save the analysis to the resume
+    resume.analysis = {
+      score,
+      summary,
+      analyzedAt: new Date()
+    };
+    
+    await resume.save();
+
+    res.json(resume.analysis);
+
+  } catch (err) {
+    console.error(err.message);
     res.status(500).send('Server Error');
   }
 });

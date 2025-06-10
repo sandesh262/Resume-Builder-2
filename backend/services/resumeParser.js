@@ -1,7 +1,94 @@
 // server/services/resumeParser.js
 const axios = require('axios');
 const pdf = require('pdf-parse');
-// const { cloudinary } = require('../config/cloudinary'); // Not strictly needed for URL fetching if URL is public
+const mammoth = require('mammoth'); // Added mammoth for DOCX
+
+// Helper function to extract common details from raw text
+const _extractDetailsFromText = (text) => {
+  const lowerText = text.toLowerCase(); // Convert to lowercase for consistent matching
+
+  // Extract email
+  const emailMatch = lowerText.match(/[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}/);
+  
+  // Extract phone
+  const phoneMatch = lowerText.match(/(\+\d{1,3}[- ]?)?\d{3}[- ]?\d{3}[- ]?\d{4}/);
+  
+  // Extract name - look for common name patterns
+  // This is a very basic name extraction, might need improvement
+  const nameMatch = lowerText.match(/^([a-z]+(?:\s[a-z'-]+)*)/im); // Try to get first line or prominent name
+  let name = 'Unknown';
+  if (nameMatch && nameMatch[0].length < 50) { // Avoid very long strings as names
+    name = nameMatch[0].split('\n')[0].trim().replace(/[^a-z\s'-]/gi, ''); // Clean up potential non-name chars
+    // Capitalize first letter of each word
+    name = name.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  }
+  
+  // Extract location - look for common location keywords
+  const locationKeywords = ['address', 'location', 'city', 'state', 'country'];
+  let location = '';
+  for (const keyword of locationKeywords) {
+    const locationMatch = lowerText.match(new RegExp(keyword + '[\s:]*([^\n]*)', 'i'));
+    if (locationMatch && locationMatch[1]) {
+      location = locationMatch[1].trim();
+      break;
+    }
+  }
+  
+  // Extract experience - look for common experience keywords
+  const experienceKeywords = ['experience', 'work', 'professional', 'career', 'employment history'];
+  const experience = [];
+  // Basic regex, can be improved significantly
+  const expSections = lowerText.split(/\n\s*\n/); // Split by blank lines
+  expSections.forEach(section => {
+    if (experienceKeywords.some(keyword => section.includes(keyword))) {
+      const lines = section.split('\n');
+      const title = lines[0] || 'N/A'; // Simplistic title extraction
+      const companyMatch = section.match(/(?:at|company|employer)[:\s]*([^\n]+)/i);
+      const company = companyMatch ? companyMatch[1].trim() : 'N/A';
+      experience.push({
+        title: title.trim(),
+        company: company,
+        description: lines.slice(1).join('\n').trim()
+      });
+    }
+  });
+
+  // Extract education - look for common education keywords
+  const educationKeywords = ['education', 'degree', 'university', 'college', 'academic'];
+  const education = [];
+  const eduSections = lowerText.split(/\n\s*\n/);
+  eduSections.forEach(section => {
+    if (educationKeywords.some(keyword => section.includes(keyword))) {
+      const lines = section.split('\n');
+      const degree = lines[0] || 'N/A'; // Simplistic degree extraction
+      const schoolMatch = section.match(/(?:at|institution|university|college)[:\s]*([^\n]+)/i);
+      const school = schoolMatch ? schoolMatch[1].trim() : 'N/A';
+      education.push({
+        degree: degree.trim(),
+        institution: school, // Changed from school to institution to match model
+        description: lines.slice(1).join('\n').trim()
+      });
+    }
+  });
+  
+  // Extract skills - look for common skill sections
+  let skills = [];
+  const skillsMatch = lowerText.match(/(?:skills|technical skills|proficiencies)[:\s]*([^\n]+(?:\n(?!\n)[^\n]+)*)/i);
+  if (skillsMatch && skillsMatch[1]) {
+    skills = skillsMatch[1].split(/[,;•\n]/).map(skill => skill.trim()).filter(skill => skill.length > 1 && skill.length < 50);
+  }
+
+  return {
+    name: name,
+    email: emailMatch ? emailMatch[0] : '',
+    phone: phoneMatch ? phoneMatch[0] : '',
+    location: location,
+    summary: '', // Summary extraction is complex, placeholder for now
+    experience: experience.slice(0, 5), // Limit entries for brevity
+    education: education.slice(0, 5),
+    skills: [...new Set(skills)].slice(0, 20) // Unique skills, limited
+  };
+};
 
 const parseResumeUrl = async (url) => {
   try {
@@ -82,7 +169,8 @@ const parsePDF = async (buffer) => {
         summary: 'Could not parse PDF - empty file',
         experience: [],
         education: [],
-        skills: []
+        skills: [],
+        fullText: '' // Empty text for empty file
       };
     }
     
@@ -90,16 +178,15 @@ const parsePDF = async (buffer) => {
     let data;
     try {
       data = await Promise.race([
-        pdf(buffer, {
-          // Add options to improve parsing reliability
-          max: 2, // only parse first two pages for speed
-          pagerender: function(pageData) { return pageData.getTextContent(); }
-        }),
+        pdf(buffer), // No options, parse all pages
         new Promise((_, reject) => 
           setTimeout(() => reject(new Error('PDF parsing timeout')), 10000)
         )
       ]);
       console.log('PDF parsed successfully, text length:', data.text.length);
+      if (data.text && data.text.length > 0 && data.text.length < 200) {
+        console.log('Extracted text (short):', data.text);
+      }
     } catch (pdfError) {
       console.error('Error in PDF parsing library:', pdfError);
       // Return a basic structure if PDF parsing fails
@@ -111,94 +198,15 @@ const parsePDF = async (buffer) => {
         summary: 'This PDF could not be parsed automatically. Please edit the details manually.',
         experience: [],
         education: [],
-        skills: []
+        skills: [],
+        fullText: '' // Empty text if parsing failed
       };
     }
     
-    const text = data.text.toLowerCase(); // Convert to lowercase for consistent matching
-    
-    // Extract email
-    const emailMatch = text.match(/[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}/);
-    
-    // Extract phone
-    const phoneMatch = text.match(/(\+\d{1,3}[- ]?)?\d{3}[- ]?\d{3}[- ]?\d{4}/);
-    
-    // Extract name - look for common name patterns
-    const nameMatch = text.match(/([a-z]+\s+[a-z]+)/);
-    const name = nameMatch ? nameMatch[0] : 'Unknown';
-    
-    // Extract location - look for common location keywords
-    const locationKeywords = ['address', 'location', 'city', 'state', 'country'];
-    let location = '';
-    for (const keyword of locationKeywords) {
-      const locationMatch = text.match(new RegExp(keyword + '.*?(?=\n|$)', 'i'));
-      if (locationMatch) {
-        location = locationMatch[0].replace(keyword, '').trim();
-        break;
-      }
-    }
-    
-    // Extract experience - look for common experience keywords
-    const experienceKeywords = ['experience', 'work', 'professional', 'career'];
-    const experience = [];
-    for (const keyword of experienceKeywords) {
-      const expSections = text.match(new RegExp(keyword + '.*?(?=\n\n|$)', 'gi'));
-      if (expSections) {
-        expSections.forEach(section => {
-          const titleMatch = section.match(/\b\w+\s+\w+\b/);
-          const companyMatch = section.match(/at\s+\w+/i);
-          
-          if (titleMatch && companyMatch) {
-            experience.push({
-              title: titleMatch[0],
-              company: companyMatch[0].replace('at', '').trim(),
-              description: section.split('\n').slice(1).join('\n')
-            });
-          }
-        });
-      }
-    }
-    
-    // Extract education - look for common education keywords
-    const educationKeywords = ['education', 'degree', 'university', 'college'];
-    const education = [];
-    for (const keyword of educationKeywords) {
-      const eduSections = text.match(new RegExp(keyword + '.*?(?=\n\n|$)', 'gi'));
-      if (eduSections) {
-        eduSections.forEach(section => {
-          const degreeMatch = section.match(/\b\w+\s+\w+\b/);
-          const schoolMatch = section.match(/at\s+\w+/i);
-          
-          if (degreeMatch && schoolMatch) {
-            education.push({
-              degree: degreeMatch[0],
-              school: schoolMatch[0].replace('at', '').trim(),
-              description: section.split('\n').slice(1).join('\n')
-            });
-          }
-        });
-      }
-    }
-    
-    // Extract skills - look for common skill sections
-    const skills = [];
-    const skillSections = text.match(/skills.*?(?=\n\n|$)/i);
-    if (skillSections) {
-      skillSections.forEach(section => {
-        const skillList = section.split(',').map(skill => skill.trim());
-        skills.push(...skillList);
-      });
-    }
-    
+    const extractedDetails = _extractDetailsFromText(data.text);
     return {
-      name: name,
-      email: emailMatch ? emailMatch[0] : '',
-      phone: phoneMatch ? phoneMatch[0] : '',
-      location: location,
-      summary: '',
-      experience: experience,
-      education: education,
-      skills: skills
+      ...extractedDetails,
+      fullText: data.text // Add the full extracted text
     };
   } catch (error) {
     console.error('Error parsing PDF:', error);
@@ -235,9 +243,54 @@ const testResumeParser = async (fileUrl) => {
   }
 };
 
+// Function to parse DOCX files
+const parseDOCX = async (buffer) => {
+  try {
+    console.log('Starting DOCX parsing, buffer size:', buffer.length);
+    if (!buffer || buffer.length === 0) {
+      console.error('Empty buffer provided to parseDOCX');
+      return {
+        name: 'Unknown',
+        email: '',
+        phone: '',
+        location: '',
+        summary: 'Could not parse DOCX - empty file',
+        experience: [],
+        education: [],
+        skills: [],
+        fullText: ''
+      };
+    }
+
+    const { value } = await mammoth.extractRawText({ buffer });
+    console.log('DOCX parsed successfully, text length:', value.length);
+    
+    const extractedDetails = _extractDetailsFromText(value);
+    return {
+      ...extractedDetails,
+      fullText: value
+    };
+
+  } catch (docxError) {
+    console.error('Error in DOCX parsing library:', docxError);
+    return {
+      name: 'DOCX Resume',
+      email: '',
+      phone: '',
+      location: '',
+      summary: 'This DOCX could not be parsed automatically. Please edit the details manually.',
+      experience: [],
+      education: [],
+      skills: [],
+      fullText: ''
+    };
+  }
+};
+
 module.exports = {
   parseResumeUrl,
   parsePDF,
+  parseDOCX,
   parseImageWithOCR,
   testResumeParser
 };
