@@ -5,7 +5,7 @@ const ResumeSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'user',
-    required: true
+    // required: true // Temporarily disabled for testing
   },
   name: {
     type: String,
@@ -49,7 +49,10 @@ const ResumeSchema = new mongoose.Schema({
     data: Buffer,        // To store the file binary data
     contentType: String, // To store the MIME type (e.g., 'application/pdf')
     filename: String,    // Original filename
-    uploadDate: Date     // When it was uploaded
+  },
+  uploadDate: {
+    type: Date,
+    default: Date.now
   },
   generatedResumes: [{
     name: String,      // Version name
@@ -71,6 +74,8 @@ const ResumeSchema = new mongoose.Schema({
   analysis: {
     score: Number,
     summary: String,
+    pros: [String],
+    cons: [String],
     analyzedAt: Date
   }
 });

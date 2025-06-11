@@ -32,9 +32,15 @@ async function analyzeResumeWithGemini(resumeText, jobDescription) {
     const model = client.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
     const prompt = `
-      Analyze the following resume based on the provided job description.
-      First, provide a score from 1 to 100 indicating how well the resume matches the job description. The score should be on its own line, like this: "Score: 85".
-      Then, provide a brief, one-paragraph summary of why you gave that score, highlighting the key strengths and weaknesses of the resume in relation to the job description.
+      You are an expert resume analyzer. Analyze the following resume based on the provided job description.
+      Provide your analysis in a JSON format. The JSON object should have the following keys:
+      - "score": An integer from 1 to 100 representing the match score.
+      - "summary": A one-paragraph summary explaining the score, highlighting key strengths and weaknesses.
+      - "pros": An array of strings, where each string is a specific strength of the resume.
+      - "cons": An array of strings, where each string is a specific weakness or area for improvement.
+      - "section_scores": An array of objects, where each object has "section_name" (string) and "score" (integer 0-100). Analyze these sections: 'Summary', 'Experience', 'Education', and 'Skills'.
+
+      Do not include any text outside of the JSON object, including markdown formatting.
 
       Job Description:
       ---
@@ -50,11 +56,22 @@ async function analyzeResumeWithGemini(resumeText, jobDescription) {
     console.log("Sending prompt to Gemini...");
     const result = await model.generateContent(prompt);
     const response = await result.response;
-    const analysis = response.text();
+    const analysisText = response.text();
     
-    console.log("Received analysis from Gemini:", analysis);
+    console.log("Received analysis from Gemini:", analysisText);
 
-    return { success: true, analysis };
+    // The Gemini API might wrap the JSON in ```json ... ```, so we need to extract it.
+    const jsonMatch = analysisText.match(/```json\n([\s\S]*?)\n```/);
+    const jsonString = jsonMatch ? jsonMatch[1] : analysisText;
+    
+    try {
+      const parsedAnalysis = JSON.parse(jsonString);
+      return { success: true, ...parsedAnalysis };
+    } catch (parseError) {
+      console.error("Failed to parse Gemini response as JSON:", parseError);
+      console.error("Raw Gemini response was:", analysisText);
+      return { success: false, error: "Failed to parse analysis from Gemini." };
+    }
 
   } catch (error) {
     console.error("Error calling Gemini API:", error.message);

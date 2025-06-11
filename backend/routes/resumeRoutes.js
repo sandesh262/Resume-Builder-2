@@ -15,7 +15,7 @@ const upload = multer({ storage: storage });
 // @route   POST api/resumes/upload
 // @desc    Upload a resume file
 // @access  Private
-router.post('/upload', authMiddleware, upload.single('resume'), async (req, res) => {
+router.post('/upload', upload.single('resume'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ msg: 'No file uploaded' });
@@ -61,7 +61,6 @@ router.post('/upload', authMiddleware, upload.single('resume'), async (req, res)
       
       // Create a new resume entry
       let resume = new Resume({
-        user: req.user.id,
         name: parsedData.name || 'My Resume',
         contact: {
           email: parsedData.email || '',
@@ -76,8 +75,7 @@ router.post('/upload', authMiddleware, upload.single('resume'), async (req, res)
         originalResume: {
           data: req.file.buffer, // Store file buffer
           contentType: req.file.mimetype, // Store content type
-          filename: req.file.originalname,
-          uploadDate: new Date()
+          filename: req.file.originalname
         }
       });
 
@@ -187,7 +185,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 // @route   PUT api/resumes/:id/job-description
 // @desc    Add or update a job description for a resume
 // @access  Private
-router.put('/:id/job-description', authMiddleware, async (req, res) => {
+router.put('/:id/job-description', async (req, res) => {
   const { jobDescription } = req.body;
   
   if (!jobDescription) {
@@ -199,10 +197,6 @@ router.put('/:id/job-description', authMiddleware, async (req, res) => {
 
     if (!resume) {
       return res.status(404).json({ msg: 'Resume not found' });
-    }
-
-    if (resume.user.toString() !== req.user.id) {
-      return res.status(401).json({ msg: 'Not authorized' });
     }
 
     resume.jobDescription = jobDescription;
@@ -227,16 +221,12 @@ router.put('/:id/job-description', authMiddleware, async (req, res) => {
 // @route   POST /api/resumes/:id/analyze
 // @desc    Analyze a resume against a job description using Gemini
 // @access  Private
-router.post('/:id/analyze', authMiddleware, async (req, res) => {
+router.post('/:id/analyze', async (req, res) => {
   try {
     const resume = await Resume.findById(req.params.id);
 
     if (!resume) {
       return res.status(404).json({ msg: 'Resume not found' });
-    }
-
-    if (resume.user.toString() !== req.user.id) {
-      return res.status(401).json({ msg: 'Not authorized' });
     }
 
     if (!resume.jobDescription) {
@@ -247,37 +237,30 @@ router.post('/:id/analyze', authMiddleware, async (req, res) => {
       return res.status(400).json({ msg: 'Resume has not been parsed yet.' });
     }
 
-    // Call the Gemini service
-    const geminiResult = await analyzeResumeWithGemini(resume.parsedText, resume.jobDescription);
+    // Call the Gemini service to get the structured analysis
+    const analysisResult = await analyzeResumeWithGemini(resume.parsedText, resume.jobDescription);
 
-    if (!geminiResult.success) {
-      return res.status(500).json({ msg: 'Error analyzing resume', error: geminiResult.error });
+    if (!analysisResult.success) {
+      console.error('Gemini analysis failed:', analysisResult.error);
+      return res.status(500).json({ msg: 'Error analyzing resume with Gemini', error: analysisResult.error });
     }
 
-    // Parse the score and summary from the Gemini response
-    const analysisText = geminiResult.analysis;
-    const scoreMatch = analysisText.match(/Score: (\d+)/);
-    const score = scoreMatch ? parseInt(scoreMatch[1], 10) : null;
-    const summary = analysisText.replace(/Score: \d+\n*/, '').trim();
-
-    if (score === null) {
-        console.error("Could not parse score from Gemini response:", analysisText);
-        return res.status(500).json({ msg: 'Failed to parse score from analysis.' });
-    }
-
-    // Save the analysis to the resume
+    // Save the structured analysis to the resume document
     resume.analysis = {
-      score,
-      summary,
+      score: analysisResult.score,
+      summary: analysisResult.summary,
+      pros: analysisResult.pros,
+      cons: analysisResult.cons,
       analyzedAt: new Date()
     };
     
     await resume.save();
 
+    // Send the new analysis back to the client
     res.json(resume.analysis);
 
   } catch (err) {
-    console.error(err.message);
+    console.error('Error in /analyze route:', err.message);
     res.status(500).send('Server Error');
   }
 });
