@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import api from '../utils/api';
 
 const AuthContext = createContext();
 
@@ -14,62 +15,77 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    // Check for existing token on app load
+  // Function to check if user is authenticated
+  const checkAuth = useCallback(async () => {
     const token = localStorage.getItem('authToken');
-    const userData = localStorage.getItem('userData');
-    
-    if (token && userData) {
-      setUser(JSON.parse(userData));
+    if (!token) {
+      setIsLoading(false);
+      return null;
     }
-    setIsLoading(false);
+
+    try {
+      const response = await api.get('/auth');
+      setUser(response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      localStorage.removeItem('authToken');
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  // Check auth status on mount
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
 
   const login = async (credentials) => {
     try {
-      // Mock login - replace with actual API call
-      const mockUser = {
-        id: '1',
-        username: credentials.username,
-        email: credentials.email || `${credentials.username}@example.com`
-      };
+      const response = await api.post('/auth/login', {
+        email: credentials.email || credentials.username,
+        password: credentials.password
+      });
+
+      if (response.data.token) {
+        localStorage.setItem('authToken', response.data.token);
+        const userData = await checkAuth();
+        return { success: true, user: userData };
+      }
       
-      const mockToken = 'mock-jwt-token-' + Date.now();
-      
-      localStorage.setItem('authToken', mockToken);
-      localStorage.setItem('userData', JSON.stringify(mockUser));
-      setUser(mockUser);
-      
-      return { success: true };
+      return { success: false, error: 'Login failed' };
     } catch (error) {
-      return { success: false, error: error.message };
+      console.error('Login error:', error);
+      const errorMessage = error.response?.data?.errors?.[0]?.msg || 'Login failed';
+      return { success: false, error: errorMessage };
     }
   };
 
   const signup = async (userData) => {
     try {
-      // Mock signup - replace with actual API call
-      const mockUser = {
-        id: Date.now().toString(),
-        username: userData.username,
-        email: userData.email
-      };
+      const response = await api.post('/auth/register', {
+        name: userData.username,
+        email: userData.email || `${userData.username}@example.com`,
+        password: userData.password
+      });
+
+      if (response.data.token) {
+        localStorage.setItem('authToken', response.data.token);
+        const userData = await checkAuth();
+        return { success: true, user: userData };
+      }
       
-      const mockToken = 'mock-jwt-token-' + Date.now();
-      
-      localStorage.setItem('authToken', mockToken);
-      localStorage.setItem('userData', JSON.stringify(mockUser));
-      setUser(mockUser);
-      
-      return { success: true };
+      return { success: false, error: 'Registration failed' };
     } catch (error) {
-      return { success: false, error: error.message };
+      console.error('Signup error:', error);
+      const errorMessage = error.response?.data?.errors?.[0]?.msg || 'Registration failed';
+      return { success: false, error: errorMessage };
     }
   };
 
   const logout = () => {
     localStorage.removeItem('authToken');
-    localStorage.removeItem('userData');
     setUser(null);
   };
 
@@ -84,7 +100,7 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider value={value}>
-      {children}
+      {!isLoading && children}
     </AuthContext.Provider>
   );
 };

@@ -59,11 +59,7 @@ router.post(
         password
       });
 
-      // Encrypt password
-      const salt = await bcrypt.genSalt(10);
-      user.password = await bcrypt.hash(password, salt);
-
-      // Save user to database
+      // Save user to database (password will be hashed by the pre-save hook)
       await user.save();
 
       // Return JWT
@@ -114,8 +110,8 @@ router.post(
         return res.status(400).json({ errors: [{ msg: 'Invalid Credentials' }] });
       }
 
-      // Check password
-      const isMatch = await bcrypt.compare(password, user.password);
+      // Check password using the model's comparePassword method
+      const isMatch = await user.comparePassword(password);
       if (!isMatch) {
         return res.status(400).json({ errors: [{ msg: 'Invalid Credentials' }] });
       }

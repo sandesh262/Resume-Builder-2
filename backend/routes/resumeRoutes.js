@@ -15,7 +15,7 @@ const upload = multer({ storage: storage });
 // @route   POST api/resumes/upload
 // @desc    Upload a resume file
 // @access  Private
-router.post('/upload', upload.single('resume'), async (req, res) => {
+router.post('/upload', authMiddleware, upload.single('resume'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ msg: 'No file uploaded' });

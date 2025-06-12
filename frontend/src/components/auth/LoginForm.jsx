@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { FaUser, FaLock, FaFileAlt } from 'react-icons/fa';
 import Button from '../common/Button';
 import toast from 'react-hot-toast';
+import api from '../../utils/api';
 
 const LoginForm = () => {
   const [formData, setFormData] = useState({
@@ -33,16 +34,34 @@ const LoginForm = () => {
     setIsLoading(true);
     
     try {
-      const result = await login(formData);
+      // Using the API utility for login
+      const response = await api.post('/auth/login', {
+        email: formData.username, // Using username as email
+        password: formData.password
+      });
       
-      if (result.success) {
+      if (response.data.token) {
+        // Store the token
+        localStorage.setItem('authToken', response.data.token);
+        
+        // Fetch user data
+        const userResponse = await api.get('/auth');
+        const userData = userResponse.data;
+        
+        // Update auth context
+        await login({
+          username: userData.email.split('@')[0],
+          email: userData.email,
+          id: userData._id
+        });
+        
         toast.success('Login successful!');
         navigate('/dashboard');
-      } else {
-        toast.error(result.error || 'Login failed');
       }
     } catch (error) {
-      toast.error('An error occurred during login');
+      console.error('Login error:', error);
+      const errorMessage = error.response?.data?.errors?.[0]?.msg || 'An error occurred during login';
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }

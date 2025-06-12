@@ -12,9 +12,28 @@ connectDB();
 const app = express();
 const resumeParser = require('./services/resumeParser');
 
+// CORS configuration
+const corsOptions = {
+  origin: 'http://localhost:3000',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token']
+};
+
 // Init middleware
-app.use(cors());
+app.use(cors(corsOptions));
 app.use(express.json({ extended: false }));
+
+// Apply auth middleware to all API routes except auth routes
+app.use('/api', (req, res, next) => {
+  // Skip auth for auth endpoints
+  if (req.path.startsWith('/auth/') || req.path === '/auth') {
+    return next();
+  }
+  // Use the auth middleware for all other API routes
+  const auth = require('./middleware/authMiddleware');
+  return auth(req, res, next);
+});
 
 // Define routes
 app.use('/api/auth', require('./routes/authRoutes'));
