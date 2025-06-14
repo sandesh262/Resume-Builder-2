@@ -18,7 +18,6 @@ const Navbar = () => {
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', auth: true },
-    { name: 'Cover Letter', href: '/cover-letter', auth: true },
     { name: 'About', href: '/about', auth: false },
     { name: 'Pricing', href: '/pricing', auth: false },
     { name: 'History', href: '/history', auth: true },
