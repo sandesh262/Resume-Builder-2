@@ -36,9 +36,28 @@ app.use('/api', (req, res, next) => {
 });
 
 // Define routes
+console.log('Registering routes...');
+app.use('/api/users', require('./routes/users'));
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/resumes', require('./routes/resumeRoutes'));
 app.use('/api/resume-parsing', require('./routes/resumeParsingRoutes'));
+
+// Debug middleware to log all requests
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  next();
+});
+
+// Cover letter routes
+console.log('Registering cover letter routes...');
+const coverLetterRoutes = require('./routes/coverLetterRoutes');
+app.use('/api/cover-letter', (req, res, next) => {
+  // Skip auth for testing
+  if (req.path === '/test') return next();
+  // Use auth middleware for other routes
+  const auth = require('./middleware/authMiddleware');
+  return auth(req, res, next);
+}, coverLetterRoutes);
 
 // Test endpoint for resume parsing
 app.post('/api/test-resume-parser', async (req, res) => {

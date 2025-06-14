@@ -11,6 +11,7 @@ import DashboardPage from './pages/DashboardPage';
 import AboutPage from './pages/AboutPage';
 import PricingPage from './pages/PricingPage';
 import HistoryPage from './pages/HistoryPage';
+import CoverLetterPage from './pages/CoverLetterPage';
 
 function App() {
   return (
@@ -37,6 +38,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <HistoryPage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/cover-letter" 
+                element={
+                  <ProtectedRoute>
+                    <CoverLetterPage />
                   </ProtectedRoute>
                 } 
               />
