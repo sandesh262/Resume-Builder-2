@@ -4,10 +4,10 @@ import { FaBriefcase } from 'react-icons/fa';
 import Card from '../common/Card';
 
 const JobDescriptionInput = () => {
-  const { jobDescription, updateJobDescription } = useAnalysis();
+  const { jobDescription, setJobDescription } = useAnalysis();
 
   const handleChange = (e) => {
-    updateJobDescription(e.target.value);
+    setJobDescription(e.target.value);
   };
 
   return (

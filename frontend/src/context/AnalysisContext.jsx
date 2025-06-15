@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState } from 'react';
+import api from '../utils/api'; // Import the centralized api utility
 
 const AnalysisContext = createContext();
 
@@ -11,95 +12,72 @@ export const useAnalysis = () => {
 };
 
 export const AnalysisProvider = ({ children }) => {
-  const [resumes, setResumes] = useState([]);
   const [selectedResume, setSelectedResume] = useState(null);
   const [jobDescription, setJobDescription] = useState('');
   const [analysisResult, setAnalysisResult] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-
-  const addResume = (resume) => {
-    const newResume = {
-      ...resume,
-      id: Date.now().toString(),
-      uploadDate: new Date().toISOString()
-    };
-    setResumes(prev => [...prev, newResume]);
-    return newResume;
-  };
-
-  const selectResume = (resume) => {
-    setSelectedResume(resume);
-  };
-
-  const updateJobDescription = (description) => {
-    setJobDescription(description);
-  };
+  const [error, setError] = useState(null);
 
   const analyzeResume = async () => {
-    if (!selectedResume || !jobDescription.trim()) {
-      throw new Error('Please select a resume and provide a job description');
+    if (!selectedResume || !jobDescription) {
+      setError('Please select a resume and provide a job description.');
+      return;
     }
 
     setIsAnalyzing(true);
-    
-    try {
-      // Mock API call - replace with actual API integration
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const mockResult = {
-        jobScore: Math.floor(Math.random() * 40) + 60, // 60-100 for demo
-        targetedChanges: [
-          {
-            section: "Skills",
-            suggestion: "Add 'React.js', 'Node.js', and 'TypeScript' to align with the job requirements."
-          },
-          {
-            section: "Experience",
-            suggestion: "Quantify your achievements with specific metrics like 'improved performance by 25%'."
-          },
-          {
-            section: "Projects",
-            suggestion: "Include more details about your full-stack development projects."
-          }
-        ],
-        overallImprovements: [
-          "Strong alignment with technical requirements",
-          "Consider adding more specific achievements with numbers",
-          "Great educational background for this role",
-          "Include links to your portfolio and GitHub profile"
-        ]
-      };
+    setError(null);
+    setAnalysisResult(null); // Clear previous results
 
-      setAnalysisResult(mockResult);
-      return mockResult;
-    } catch (error) {
-      throw new Error('Analysis failed. Please try again.');
+    try {
+      // Step 1: Upload the resume file using the api utility
+      const uploadFormData = new FormData();
+      uploadFormData.append('resume', selectedResume.file);
+
+      const uploadRes = await api.post('/resumes/upload', uploadFormData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      const resumeId = uploadRes.data.resumeId;
+
+      // Step 2: Update the job description for the resume
+      await api.put(`/resumes/${resumeId}/job-description`, { jobDescription });
+
+      // Step 3: Trigger the analysis
+      const analysisResponse = await api.post(`/resumes/${resumeId}/analyze`);
+
+      // Log the raw data to the browser console for inspection
+      console.log('Analysis data received from API:', analysisResponse.data);
+
+      if (analysisResponse.data) {
+        setAnalysisResult(analysisResponse.data);
+      } else {
+        throw new Error('Analysis returned no data.');
+      }
+
+    } catch (err) {
+      console.error('An error occurred during the analysis process:', err);
+      const errorMsg = err.response?.data?.error || err.message || 'An unexpected error occurred. Please try again.';
+      setError(errorMsg);
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  const clearAnalysis = () => {
-    setAnalysisResult(null);
-    setJobDescription('');
-    setSelectedResume(null);
-  };
-
-  const value = {
-    resumes,
-    selectedResume,
-    jobDescription,
-    analysisResult,
-    isAnalyzing,
-    addResume,
-    selectResume,
-    updateJobDescription,
-    analyzeResume,
-    clearAnalysis
-  };
-
   return (
-    <AnalysisContext.Provider value={value}>
+    <AnalysisContext.Provider
+      value={{
+        isAnalyzing,
+        analysisResult,
+        error,
+        selectedResume,
+        jobDescription,
+        setSelectedResume,
+        setJobDescription,
+        analyzeResume,
+      }}
+    >
       {children}
     </AnalysisContext.Provider>
   );

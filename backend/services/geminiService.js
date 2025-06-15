@@ -32,15 +32,50 @@ async function analyzeResumeWithGemini(resumeText, jobDescription) {
     const model = client.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
     const prompt = `
-      You are an expert resume analyzer. Analyze the following resume based on the provided job description.
-      Provide your analysis in a JSON format. The JSON object should have the following keys:
-      - "score": An integer from 1 to 100 representing the match score.
-      - "summary": A one-paragraph summary explaining the score, highlighting key strengths and weaknesses.
-      - "pros": An array of strings, where each string is a specific strength of the resume.
-      - "cons": An array of strings, where each string is a specific weakness or area for improvement.
-      - "section_scores": An array of objects, where each object has "section_name" (string) and "score" (integer 0-100). Analyze these sections: 'Summary', 'Experience', 'Education', and 'Skills'.
+      You are an expert resume analyzer with years of experience in technical recruiting. Your task is to provide a comprehensive, structured analysis of a resume against a given job description.
 
-      Do not include any text outside of the JSON object, including markdown formatting.
+      Please return your analysis strictly in the following JSON format. Do not include any text, markdown formatting, or explanations outside of the JSON object.
+
+      { 
+        "score": <integer, 1-100, overall match score>,
+        "overview": "<string, a detailed 2-3 sentence summary of the candidate's fit for the role>",
+        "strengths": [
+          "<string, a key strength>",
+          "<string, another key strength>"
+        ],
+        "improvement_areas": [
+          "<string, a key area for improvement>",
+          "<string, another key area for improvement>"
+        ],
+        "missing_keywords": [
+          "<string, an important keyword from the job description missing in the resume>"
+        ],
+        "missing_skills": [
+          "<string, an important skill from the job description missing in the resume>"
+        ],
+        "section_analysis": [
+          {
+            "section": "<string, e.g., 'Experience', 'Education', 'Skills'>",
+            "score": <integer, 1-100, score for this section>,
+            "feedback": "<string, detailed feedback on this section's content and relevance>",
+            "suggestions": [
+              "<string, an actionable suggestion for this section>"
+            ]
+          }
+        ],
+        "targeted_improvements": {
+          "critical": [
+            "<string, a critical change that must be made>"
+          ],
+          "recommended": [
+            "<string, a highly recommended change>"
+          ],
+          "optional": [
+            "<string, a nice-to-have change>"
+          ]
+        },
+        "general_feedback": "<string, a concluding paragraph with final thoughts and encouragement.>"
+      }
 
       Job Description:
       ---

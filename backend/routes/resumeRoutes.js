@@ -61,6 +61,7 @@ router.post('/upload', authMiddleware, upload.single('resume'), async (req, res)
       
       // Create a new resume entry
       let resume = new Resume({
+        user: req.user.id, // Associate the resume with the logged-in user
         name: parsedData.name || 'My Resume',
         contact: {
           email: parsedData.email || '',
@@ -185,7 +186,7 @@ router.delete('/:id', authMiddleware, async (req, res) => {
 // @route   PUT api/resumes/:id/job-description
 // @desc    Add or update a job description for a resume
 // @access  Private
-router.put('/:id/job-description', async (req, res) => {
+router.put('/:id/job-description', authMiddleware, async (req, res) => {
   const { jobDescription } = req.body;
   
   if (!jobDescription) {
@@ -193,7 +194,7 @@ router.put('/:id/job-description', async (req, res) => {
   }
 
   try {
-    const resume = await Resume.findById(req.params.id);
+    const resume = await Resume.findOne({ _id: req.params.id, user: req.user.id });
 
     if (!resume) {
       return res.status(404).json({ msg: 'Resume not found' });
@@ -221,9 +222,10 @@ router.put('/:id/job-description', async (req, res) => {
 // @route   POST /api/resumes/:id/analyze
 // @desc    Analyze a resume against a job description using Gemini
 // @access  Private
-router.post('/:id/analyze', async (req, res) => {
+router.post('/:id/analyze', authMiddleware, async (req, res) => {
+  let analysisToSave = {}; // Define here to have scope in catch block
   try {
-    const resume = await Resume.findById(req.params.id);
+    const resume = await Resume.findOne({ _id: req.params.id, user: req.user.id });
 
     if (!resume) {
       return res.status(404).json({ msg: 'Resume not found' });
@@ -237,31 +239,36 @@ router.post('/:id/analyze', async (req, res) => {
       return res.status(400).json({ msg: 'Resume has not been parsed yet.' });
     }
 
-    // Call the Gemini service to get the structured analysis
     const analysisResult = await analyzeResumeWithGemini(resume.parsedText, resume.jobDescription);
 
     if (!analysisResult.success) {
       console.error('Gemini analysis failed:', analysisResult.error);
-      return res.status(500).json({ msg: 'Error analyzing resume with Gemini', error: analysisResult.error });
+      return res.status(500).json({ success: false, msg: 'Error analyzing resume with Gemini', error: analysisResult.error });
     }
 
-    // Save the structured analysis to the resume document
-    resume.analysis = {
-      score: analysisResult.score,
-      summary: analysisResult.summary,
-      pros: analysisResult.pros,
-      cons: analysisResult.cons,
+    const { success, ...analysisData } = analysisResult;
+    analysisToSave = {
+      ...analysisData,
       analyzedAt: new Date()
     };
-    
-    await resume.save();
 
-    // Send the new analysis back to the client
-    res.json(resume.analysis);
+    resume.analysis = analysisToSave;
+    resume.markModified('analysis');
+    
+    console.log('Attempting to save analysis...');
+    await resume.save();
+    console.log('Analysis saved successfully.');
+
+    res.json({ success: true, ...resume.analysis });
 
   } catch (err) {
-    console.error('Error in /analyze route:', err.message);
-    res.status(500).send('Server Error');
+    console.error('Error saving analysis to database:', err.message);
+    console.error('Data that failed to save:', JSON.stringify(analysisToSave, null, 2));
+    res.status(500).json({ 
+      success: false, 
+      msg: 'Server Error: Could not save analysis to the database.', 
+      error: err.message 
+    });
   }
 });
 

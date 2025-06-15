@@ -72,11 +72,8 @@ const ResumeSchema = new mongoose.Schema({
     default: Date.now
   },
   analysis: {
-    score: Number,
-    summary: String,
-    pros: [String],
-    cons: [String],
-    analyzedAt: Date
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
   }
 });
 

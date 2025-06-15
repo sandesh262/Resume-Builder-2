@@ -6,7 +6,8 @@ import Card from '../common/Card';
 import toast from 'react-hot-toast';
 
 const ResumeUploader = () => {
-  const { resumes, selectedResume, addResume, selectResume } = useAnalysis();
+  const { selectedResume, setSelectedResume } = useAnalysis();
+  const [resumes, setResumes] = useState([]);
   const [isDragOver, setIsDragOver] = useState(false);
 
   useEffect(() => {
@@ -40,7 +41,9 @@ const ResumeUploader = () => {
     // Create file URL for preview
     const fileUrl = URL.createObjectURL(file);
 
-    const resume = {
+    const newResume = {
+      id: Date.now().toString(),
+      uploadDate: new Date().toISOString(),
       name: file.name,
       type: file.type,
       size: file.size,
@@ -48,9 +51,10 @@ const ResumeUploader = () => {
       url: fileUrl
     };
 
-    addResume(resume);
+    setResumes(prev => [...prev, newResume]);
+    setSelectedResume(newResume);
     toast.success('Resume uploaded successfully!');
-  }, [addResume]);
+  }, [setSelectedResume]);
 
   const handleDrop = useCallback((e) => {
     e.preventDefault();
@@ -145,7 +149,7 @@ const ResumeUploader = () => {
                     ? 'border-blue-500 bg-blue-50'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
-                onClick={() => selectResume(resume)}
+                onClick={() => setSelectedResume(resume)}
               >
                 <div className="flex items-center space-x-3">
                   {getFileIcon(resume.type)}
