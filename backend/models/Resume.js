@@ -50,6 +50,30 @@ const ResumeSchema = new mongoose.Schema({
     contentType: String, // To store the MIME type (e.g., 'application/pdf')
     filename: String,    // Original filename
   },
+  analysis: {
+    score: Number,
+    overview: String,
+    strengths: [String],
+    improvement_areas: [String],
+    missing_keywords: [String],
+    missing_skills: [String],
+    section_analysis: [{
+      section: String,
+      score: Number,
+      feedback: String,
+      suggestions: [String]
+    }],
+    targeted_improvements: {
+      critical: [String],
+      recommended: [String],
+      optional: [String]
+    },
+    general_feedback: String,
+    timestamp: {
+      type: Date,
+      default: Date.now
+    }
+  },
   uploadDate: {
     type: Date,
     default: Date.now

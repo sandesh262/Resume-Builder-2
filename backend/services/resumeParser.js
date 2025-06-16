@@ -13,15 +13,53 @@ const _extractDetailsFromText = (text) => {
   // Extract phone
   const phoneMatch = lowerText.match(/(\+\d{1,3}[- ]?)?\d{3}[- ]?\d{3}[- ]?\d{4}/);
   
-  // Extract name - look for common name patterns
-  // This is a very basic name extraction, might need improvement
-  const nameMatch = lowerText.match(/^([a-z]+(?:\s[a-z'-]+)*)/im); // Try to get first line or prominent name
-  let name = 'Unknown';
-  if (nameMatch && nameMatch[0].length < 50) { // Avoid very long strings as names
-    name = nameMatch[0].split('\n')[0].trim().replace(/[^a-z\s'-]/gi, ''); // Clean up potential non-name chars
-    // Capitalize first letter of each word
-    name = name.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  // Enhanced name extraction logic
+  let name = '';
+  const lines = text.split('\n');
+  
+  // Try to extract name from first few lines
+  for (let i = 0; i < Math.min(5, lines.length); i++) {
+    const line = lines[i].trim();
+    // Skip if line looks like a section header or contains common keywords
+    if (line.toLowerCase().includes('resume') || 
+        line.toLowerCase().includes('curriculum vitae') ||
+        line.toLowerCase().includes('c.v.') ||
+        line.toLowerCase().includes('contact') ||
+        line.toLowerCase().includes('summary') ||
+        line.toLowerCase().includes('objective')) {
+      continue;
+    }
+    
+    // Check if line looks like a name
+    const words = line.split(' ').filter(w => w.length > 1);
+    if (words.length >= 2 && words.length <= 5) {
+      // Check if most words look like names (capitalized)
+      const nameWords = words.filter(w => /^[A-Z][a-z'-]*$/.test(w));
+      if (nameWords.length >= words.length - 1) {
+        name = words.join(' ');
+        break;
+      }
+    }
   }
+  
+  // If no name found, try to extract from filename
+  if (!name) {
+    const filenameMatch = text.match(/(?:filename|name)[:\s]*([\w\s'-]+)/i);
+    if (filenameMatch) {
+      name = filenameMatch[1].trim();
+    }
+  }
+  
+  // If still no name, use a default
+  if (!name) {
+    name = 'Unnamed Resume';
+  }
+  
+  // Clean up and format the name
+  name = name.replace(/[^a-zA-Z\s'-]/g, '')
+             .replace(/\s+/g, ' ')
+             .trim();
+  name = name.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   
   // Extract location - look for common location keywords
   const locationKeywords = ['address', 'location', 'city', 'state', 'country'];
