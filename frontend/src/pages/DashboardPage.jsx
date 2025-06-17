@@ -3,7 +3,7 @@ import { useAnalysis } from '../context/AnalysisContext';
 import Navbar from '../components/layout/Navbar';
 import ResumeUploader from '../components/dashboard/ResumeUploader';
 import JobDescriptionInput from '../components/dashboard/JobDescriptionInput';
-import AnalysisDisplay from '../components/dashboard/AnalysisDisplay';
+import { useNavigate } from 'react-router-dom';
 import CoverLetterTab from '../components/dashboard/CoverLetterTab';
 import Button from '../components/common/Button';
 import { FaChartBar, FaFileAlt } from 'react-icons/fa';
@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 
 const DashboardPage = () => {
   const [activeTab, setActiveTab] = useState('resume'); // 'resume' or 'coverLetter'
+  const navigate = useNavigate();
   const { 
     selectedResume, 
     jobDescription, 
@@ -24,6 +25,7 @@ const DashboardPage = () => {
   const handleAnalyze = async () => {
     try {
       await analyzeResume();
+      navigate('/analysis-result');
     } catch (error) {
       toast.error(error.message);
     }
@@ -114,7 +116,13 @@ const DashboardPage = () => {
 
             {/* Right Column - Output */}
             <div className="space-y-6">
-              <AnalysisDisplay />
+              <div className="bg-white shadow-md rounded-lg p-6 h-full flex items-center justify-center min-h-[300px]">
+                <div className="text-center text-gray-500">
+                  <FaChartBar className="mx-auto h-12 w-12 text-gray-400" />
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">Analysis Results</h3>
+                  <p className="mt-1 text-sm text-gray-500">Your analysis results will appear on a new page after you click "Analyze Resume".</p>
+                </div>
+              </div>
             </div>
           </div>
         ) : (

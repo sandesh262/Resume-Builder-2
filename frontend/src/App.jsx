@@ -12,6 +12,7 @@ import AboutPage from './pages/AboutPage';
 import PricingPage from './pages/PricingPage';
 import HistoryPage from './pages/HistoryPage';
 import CoverLetterPage from './pages/CoverLetterPage';
+import AnalysisResultPage from './pages/AnalysisResultPage';
 
 function App() {
   return (
@@ -46,6 +47,14 @@ function App() {
                 element={
                   <ProtectedRoute>
                     <CoverLetterPage />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route 
+                path="/analysis-result" 
+                element={
+                  <ProtectedRoute>
+                    <AnalysisResultPage />
                   </ProtectedRoute>
                 } 
               />
