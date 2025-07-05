@@ -6,10 +6,12 @@ import JobDescriptionInput from '../components/dashboard/JobDescriptionInput';
 import { useNavigate } from 'react-router-dom';
 import CoverLetterTab from '../components/dashboard/CoverLetterTab';
 import Button from '../components/common/Button';
-import { FaChartBar, FaFileAlt } from 'react-icons/fa';
+import { FaChartBar, FaFileAlt, FaPencilAlt } from 'react-icons/fa';
+import ResumePreview from '../components/dashboard/ResumePreview';
 import toast from 'react-hot-toast';
 
 const DashboardPage = () => {
+
   const [activeTab, setActiveTab] = useState('resume'); // 'resume' or 'coverLetter'
   const navigate = useNavigate();
   const { 
@@ -75,7 +77,7 @@ const DashboardPage = () => {
         </div>
 
         {/* Tab Content */}
-        {activeTab === 'resume' ? (
+        {activeTab === 'resume' ? ( <>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Left Column - Input */}
             <div className="space-y-6">
@@ -114,17 +116,23 @@ const DashboardPage = () => {
               )}
             </div>
 
-            {/* Right Column - Output */}
-            <div className="space-y-6">
-              <div className="bg-white shadow-md rounded-lg p-6 h-full flex items-center justify-center min-h-[300px]">
-                <div className="text-center text-gray-500">
-                  <FaChartBar className="mx-auto h-12 w-12 text-gray-400" />
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">Analysis Results</h3>
-                  <p className="mt-1 text-sm text-gray-500">Your analysis results will appear on a new page after you click "Analyze Resume".</p>
-                </div>
-              </div>
+            {/* Right Column - Preview + Edit */}
+            <div className="space-y-4 lg:pl-4">
+              <ResumePreview file={selectedResume?.file || selectedResume} />
+
+              <Button
+                onClick={() => toast('Edit functionality coming soon!', { icon: '🔜' })}
+                disabled={!selectedResume}
+                size="lg"
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white flex items-center justify-center gap-2"
+              >
+                <FaPencilAlt className="w-4 h-4" />
+                Edit Resume (Coming Soon)
+              </Button>
             </div>
           </div>
+
+          </>
         ) : (
           <CoverLetterTab />
         )}

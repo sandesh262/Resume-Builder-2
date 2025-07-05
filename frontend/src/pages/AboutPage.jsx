@@ -1,8 +1,6 @@
 import React from 'react';
 import { 
-  FaBullseye, 
   FaUsers, 
-  FaAward, 
   FaLightbulb,
   FaHeart,
   FaGlobe,
@@ -13,32 +11,6 @@ import Navbar from '../components/layout/Navbar';
 import Card from '../components/common/Card';
 
 const AboutPage = () => {
-  const team = [
-    {
-      name: 'Alex Johnson',
-      role: 'CEO & Co-Founder',
-      image: 'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=300&h=300&fit=crop',
-      bio: 'Former Google engineer with 10+ years in AI and machine learning.'
-    },
-    {
-      name: 'Sarah Chen',
-      role: 'CTO & Co-Founder',
-      image: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=300&h=300&fit=crop',
-      bio: 'AI researcher and former Microsoft principal engineer specializing in NLP.'
-    },
-    {
-      name: 'Michael Rodriguez',
-      role: 'Head of Product',
-      image: 'https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=300&h=300&fit=crop',
-      bio: 'Product leader with experience at LinkedIn and career development platforms.'
-    },
-    {
-      name: 'Emily Davis',
-      role: 'Head of Design',
-      image: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=300&h=300&fit=crop',
-      bio: 'UX designer passionate about creating intuitive experiences for job seekers.'
-    }
-  ];
 
   const values = [
     {
@@ -60,29 +32,6 @@ const AboutPage = () => {
       icon: <FaGlobe className="w-8 h-8" />,
       title: 'Accessibility',
       description: 'We make professional career tools accessible to everyone, regardless of background.'
-    }
-  ];
-
-  const milestones = [
-    {
-      year: '2022',
-      title: 'Company Founded',
-      description: 'ResumeAI was born from the vision to democratize career success through AI.'
-    },
-    {
-      year: '2023',
-      title: '10K Users',
-      description: 'Reached our first major milestone with 10,000 active users.'
-    },
-    {
-      year: '2023',
-      title: 'AI Engine v2.0',
-      description: 'Launched our advanced AI analysis engine with 95% accuracy.'
-    },
-    {
-      year: '2024',
-      title: '50K+ Resumes',
-      description: 'Successfully analyzed over 50,000 resumes with 85% success rate.'
     }
   ];
 
@@ -172,92 +121,6 @@ const AboutPage = () => {
                 </p>
               </Card>
             ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Team Section */}
-      <section className="py-20 bg-gradient-to-r from-primary-50 to-accent-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-display font-bold text-gray-900 mb-4">
-              Meet Our Team
-            </h2>
-            <p className="text-xl text-gray-600">
-              The passionate individuals behind ResumeAI's success
-            </p>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {team.map((member, index) => (
-              <Card key={index} hover className="p-6 text-center group">
-                <div className="relative mb-6">
-                  <img
-                    src={member.image}
-                    alt={member.name}
-                    className="w-24 h-24 rounded-full mx-auto object-cover group-hover:scale-110 transition-transform duration-300"
-                  />
-                  <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-gradient-to-r from-primary-500 to-accent-500 rounded-full flex items-center justify-center">
-                    <FaAward className="w-4 h-4 text-white" />
-                  </div>
-                </div>
-                <h3 className="text-lg font-display font-semibold text-gray-900 mb-2">
-                  {member.name}
-                </h3>
-                <p className="text-primary-600 font-medium mb-3">
-                  {member.role}
-                </p>
-                <p className="text-sm text-gray-600 leading-relaxed">
-                  {member.bio}
-                </p>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Timeline Section */}
-      <section className="py-20">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-display font-bold text-gray-900 mb-4">
-              Our Journey
-            </h2>
-            <p className="text-xl text-gray-600">
-              Key milestones in our mission to transform career success
-            </p>
-          </div>
-          
-          <div className="relative">
-            <div className="absolute left-1/2 transform -translate-x-1/2 w-1 h-full bg-gradient-to-b from-primary-500 to-accent-500 rounded-full"></div>
-            
-            <div className="space-y-12">
-              {milestones.map((milestone, index) => (
-                <div key={index} className={`flex items-center ${index % 2 === 0 ? 'flex-row' : 'flex-row-reverse'}`}>
-                  <div className={`w-1/2 ${index % 2 === 0 ? 'pr-8 text-right' : 'pl-8 text-left'}`}>
-                    <Card hover gradient className="p-6">
-                      <div className="text-2xl font-display font-bold gradient-text mb-2">
-                        {milestone.year}
-                      </div>
-                      <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                        {milestone.title}
-                      </h3>
-                      <p className="text-gray-600 leading-relaxed">
-                        {milestone.description}
-                      </p>
-                    </Card>
-                  </div>
-                  
-                  <div className="relative z-10">
-                    <div className="w-12 h-12 bg-gradient-to-r from-primary-500 to-accent-500 rounded-full flex items-center justify-center shadow-lg">
-                      <FaBullseye className="w-6 h-6 text-white" />
-                    </div>
-                  </div>
-                  
-                  <div className="w-1/2"></div>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       </section>
